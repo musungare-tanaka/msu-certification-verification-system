@@ -1,6 +1,8 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 
 const GOLD = '#FFD700';
@@ -9,23 +11,42 @@ const BLUE = '#1E3A8A';
 // System name constant
 const SYSTEM_NAME = 'MSU-CERT';
 
-export default function LoginPage() {
+export default function SignupPage() {
+    const router = useRouter();
+    const [firstName, setFirstName] = useState<string>('');
+    const [lastName, setLastName] = useState<string>('');
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
+    const [confirmPassword, setConfirmPassword] = useState<string>('');
     const [error, setError] = useState<string>('');
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError('');
-        if (!email || !password) {
-            setError('Please enter both email and password.');
+
+        if (!firstName || !lastName || !email || !password || !confirmPassword) {
+            setError('Please fill in all fields.');
             return;
         }
+
+        if (password !== confirmPassword) {
+            setError('Passwords do not match.');
+            return;
+        }
+
+        if (password.length < 6) {
+            setError('Password must be at least 6 characters long.');
+            return;
+        }
+
         // Example: call API here
-        // await login({ email, password });
+        // await signup({ firstName, lastName, email, password });
+        
+        // For testing purposes - navigate to dashboard without API verification
+        router.push('/components/layout');
     };
 
-    const handleGoogleLogin = () => {
+    const handleGoogleSignup = () => {
         // Example: redirect to Google OAuth
         // window.location.href = '/api/auth/google';
     };
@@ -50,13 +71,49 @@ export default function LoginPage() {
                     </span>
                 </div>
                 <h2 className="text-center font-bold text-2xl mb-2" style={{ color: BLUE }}>
-                    Login
+                    Sign Up
                 </h2>
                 {error && (
                     <div className="text-red-700 bg-red-100 p-2 rounded-lg text-center text-base">
                         {error}
                     </div>
                 )}
+                <div className="flex gap-4">
+                    <div className="flex-1">
+                        <label
+                            htmlFor="firstName"
+                            className="font-semibold mb-1 block"
+                            style={{ color: BLUE }}
+                        >
+                            First Name
+                        </label>
+                        <input
+                            type="text"
+                            id="firstName"
+                            value={firstName}
+                            onChange={e => setFirstName(e.target.value)}
+                            className="w-full p-3 text-black rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
+                            required
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <label
+                            htmlFor="lastName"
+                            className="font-semibold mb-1 block"
+                            style={{ color: BLUE }}
+                        >
+                            Last Name
+                        </label>
+                        <input
+                            type="text"
+                            id="lastName"
+                            value={lastName}
+                            onChange={e => setLastName(e.target.value)}
+                            className="w-full p-3 text-black rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
+                            required
+                        />
+                    </div>
+                </div>
                 <div>
                     <label
                         htmlFor="email"
@@ -70,7 +127,7 @@ export default function LoginPage() {
                         id="email"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
-                        className="w-full p-3 rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
+                        className="w-full p-3 rounded-lg text-black border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
                         required
                         autoComplete="email"
                     />
@@ -88,9 +145,27 @@ export default function LoginPage() {
                         id="password"
                         value={password}
                         onChange={e => setPassword(e.target.value)}
-                        className="w-full p-3 rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
+                        className="w-full p-3 rounded-lg text-black border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
                         required
-                        autoComplete="current-password"
+                        autoComplete="new-password"
+                    />
+                </div>
+                <div>
+                    <label
+                        htmlFor="confirmPassword"
+                        className="font-semibold mb-1 block"
+                        style={{ color: BLUE }}
+                    >
+                        Confirm Password
+                    </label>
+                    <input
+                        type="password"
+                        id="confirmPassword"
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        className="w-full p-3 rounded-lg text-black border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
+                        required
+                        autoComplete="new-password"
                     />
                 </div>
                 <button
@@ -101,7 +176,7 @@ export default function LoginPage() {
                         color: GOLD,
                     }}
                 >
-                    Sign In
+                    Create Account
                 </button>
                 <div className="flex items-center my-2">
                     <hr className="flex-grow border-gray-300" />
@@ -110,7 +185,7 @@ export default function LoginPage() {
                 </div>
                 <button
                     type="button"
-                    onClick={handleGoogleLogin}
+                    onClick={handleGoogleSignup}
                     className="flex items-center justify-center gap-2 bg-white border border-gray-300 p-3 rounded-lg text-base font-medium cursor-pointer transition hover:bg-gray-50 text-black"
                 >
                     <Image
@@ -120,8 +195,18 @@ export default function LoginPage() {
                         height={20}
                         className="w-5 h-5"
                     />
-                    Sign in with Google
+                    Sign up with Google
                 </button>
+                <div className="text-center text-sm text-gray-600">
+                    Already have an account?{' '}
+                    <Link
+                        href="/auth/login"
+                        className="font-semibold transition"
+                        style={{ color: BLUE }}
+                    >
+                        Sign In
+                    </Link>
+                </div>
             </form>
         </div>
     );
