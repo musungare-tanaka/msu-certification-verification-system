@@ -8,7 +8,7 @@ const BLUE = '#1E3A8A';
 
 export default function DashboardPage() {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
+        <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-blue-100">
             <div className="text-center">
                 <h1 className="text-5xl font-bold mb-4" style={{ color: BLUE }}>
                     MSU-CERT Dashboard

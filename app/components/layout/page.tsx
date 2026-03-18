@@ -1,16 +1,44 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { getCurrentUser, clearAuthData, isAuthenticated } from '@/app/lib/auth';
 
 const GOLD = '#FFD700';
 const BLUE = '#1E3A8A';
 
 type NavItem = 'dashboard' | 'profile' | 'settings' | 'reports' | 'users';
 
+interface UserData {
+    id: number;
+    username: string;
+    email: string;
+    fullName: string | null;
+    role: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export default function LayoutPage() {
+    const router = useRouter();
     const [selected, setSelected] = useState<NavItem>('dashboard');
+    const [user, setUser] = useState<UserData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        // Check authentication on mount
+        if (!isAuthenticated()) {
+            router.push('/auth/login');
+            return;
+        }
+
+        // Load user data from localStorage
+        const currentUser = getCurrentUser();
+        setUser(currentUser);
+        setIsLoading(false);
+    }, [router]);
 
     const navItems: { id: NavItem; label: string; icon: string }[] = [
         { id: 'dashboard', label: 'Dashboard', icon: '📊' },
@@ -19,6 +47,21 @@ export default function LayoutPage() {
         { id: 'users', label: 'Users', icon: '👥' },
         { id: 'settings', label: 'Settings', icon: '⚙️' },
     ];
+
+    const handleLogout = () => {
+        // Clear auth data
+        clearAuthData();
+        // Redirect to login
+        router.push('/auth/login');
+    };
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: BLUE }}>
+                <div className="text-white text-2xl font-semibold">Loading...</div>
+            </div>
+        );
+    }
 
     const renderContent = () => {
         switch (selected) {
@@ -70,23 +113,37 @@ export default function LayoutPage() {
                                 </div>
                                 <div>
                                     <h2 className="text-2xl font-semibold" style={{ color: BLUE }}>
-                                        John Doe
+                                        {user?.fullName || user?.username || 'User'}
                                     </h2>
-                                    <p className="text-gray-600">Admin User</p>
+                                    <p className="text-gray-600 capitalize">{user?.role || 'User'}</p>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="font-semibold" style={{ color: BLUE }}>
+                                        Username
+                                    </label>
+                                    <p className="text-gray-600">{user?.username || 'N/A'}</p>
+                                </div>
                                 <div>
                                     <label className="font-semibold" style={{ color: BLUE }}>
                                         Email
                                     </label>
-                                    <p className="text-gray-600">john.doe@msu.edu</p>
+                                    <p className="text-gray-600">{user?.email || 'N/A'}</p>
                                 </div>
                                 <div>
                                     <label className="font-semibold" style={{ color: BLUE }}>
-                                        Department
+                                        Role
                                     </label>
-                                    <p className="text-gray-600">IT Security</p>
+                                    <p className="text-gray-600 capitalize">{user?.role || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="font-semibold" style={{ color: BLUE }}>
+                                        Member Since
+                                    </label>
+                                    <p className="text-gray-600">
+                                        {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -242,13 +299,13 @@ export default function LayoutPage() {
 
                 {/* Logout */}
                 <div className="mt-auto pt-6 border-t border-white border-opacity-20">
-                    <Link
-                        href="/auth/login"
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg font-semibold hover:bg-opacity-20 hover:bg-white transition"
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-semibold hover:bg-opacity-20 hover:bg-white transition"
                     >
                         <span className="text-xl">🚪</span>
                         Logout
-                    </Link>
+                    </button>
                 </div>
             </div>
 

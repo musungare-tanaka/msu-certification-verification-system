@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
+import API_BASE_URL from '@/app/route/route';
 
 const GOLD = '#FFD700';
 const BLUE = '#1E3A8A';
@@ -13,37 +14,106 @@ const SYSTEM_NAME = 'MSU-CERT';
 
 export default function SignupPage() {
     const router = useRouter();
-    const [firstName, setFirstName] = useState<string>('');
-    const [lastName, setLastName] = useState<string>('');
+    const [username, setUsername] = useState<string>('');
+    const [fullName, setFullName] = useState<string>('');
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [confirmPassword, setConfirmPassword] = useState<string>('');
     const [error, setError] = useState<string>('');
+    const [isLoading, setIsLoading] = useState<boolean>(false);
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    const validateForm = (): boolean => {
         setError('');
 
-        if (!firstName || !lastName || !email || !password || !confirmPassword) {
-            setError('Please fill in all fields.');
-            return;
+        if (!username || !email || !password || !confirmPassword) {
+            setError('Please fill in all required fields.');
+            return false;
+        }
+
+        if (username.length < 3 || username.length > 50) {
+            setError('Username must be 3-50 characters long.');
+            return false;
+        }
+
+        if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+            setError('Username may only contain letters, digits, and underscores.');
+            return false;
         }
 
         if (password !== confirmPassword) {
             setError('Passwords do not match.');
+            return false;
+        }
+
+        if (password.length < 8) {
+            setError('Password must be at least 8 characters long.');
+            return false;
+        }
+
+        if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+            setError('Password must contain at least one uppercase letter, one lowercase letter, and one digit.');
+            return false;
+        }
+
+        if (fullName && fullName.length > 100) {
+            setError('Full name must be at most 100 characters.');
+            return false;
+        }
+
+        return true;
+    };
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+
+        if (!validateForm()) {
             return;
         }
 
-        if (password.length < 6) {
-            setError('Password must be at least 6 characters long.');
-            return;
-        }
+        setIsLoading(true);
 
-        // Example: call API here
-        // await signup({ firstName, lastName, email, password });
-        
-        // For testing purposes - navigate to dashboard without API verification
-        router.push('/components/layout');
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username,
+                    email,
+                    password,
+                    fullName: fullName || undefined,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setError(data.message || 'Registration failed. Please try again.');
+                setIsLoading(false);
+                return;
+            }
+
+            // Store the JWT token and user info from AuthResponse
+            if (data.data && data.data.accessToken) {
+                localStorage.setItem('authToken', data.data.accessToken);
+                localStorage.setItem('tokenType', data.data.tokenType || 'Bearer');
+                if (data.data.expiresIn) {
+                    localStorage.setItem('expiresIn', data.data.expiresIn.toString());
+                }
+                // Store user info for later use
+                if (data.data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                }
+            }
+
+            // Redirect to dashboard on successful registration
+            router.push('/components/layout');
+        } catch (err) {
+            setError('An error occurred. Please check your connection and try again.');
+            console.error('Registration error:', err);
+            setIsLoading(false);
+        }
     };
 
     const handleGoogleSignup = () => {
@@ -78,41 +148,42 @@ export default function SignupPage() {
                         {error}
                     </div>
                 )}
-                <div className="flex gap-4">
-                    <div className="flex-1">
-                        <label
-                            htmlFor="firstName"
-                            className="font-semibold mb-1 block"
-                            style={{ color: BLUE }}
-                        >
-                            First Name
-                        </label>
-                        <input
-                            type="text"
-                            id="firstName"
-                            value={firstName}
-                            onChange={e => setFirstName(e.target.value)}
-                            className="w-full p-3 text-black rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
-                            required
-                        />
-                    </div>
-                    <div className="flex-1">
-                        <label
-                            htmlFor="lastName"
-                            className="font-semibold mb-1 block"
-                            style={{ color: BLUE }}
-                        >
-                            Last Name
-                        </label>
-                        <input
-                            type="text"
-                            id="lastName"
-                            value={lastName}
-                            onChange={e => setLastName(e.target.value)}
-                            className="w-full p-3 text-black rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
-                            required
-                        />
-                    </div>
+                <div>
+                    <label
+                        htmlFor="username"
+                        className="font-semibold mb-1 block"
+                        style={{ color: BLUE }}
+                    >
+                        Username *
+                    </label>
+                    <input
+                        type="text"
+                        id="username"
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        className="w-full p-3 text-black rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
+                        required
+                        disabled={isLoading}
+                        placeholder="3-50 characters, letters/digits/underscores"
+                    />
+                </div>
+                <div>
+                    <label
+                        htmlFor="fullName"
+                        className="font-semibold mb-1 block"
+                        style={{ color: BLUE }}
+                    >
+                        Full Name
+                    </label>
+                    <input
+                        type="text"
+                        id="fullName"
+                        value={fullName}
+                        onChange={e => setFullName(e.target.value)}
+                        className="w-full p-3 text-black rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
+                        disabled={isLoading}
+                        placeholder="Optional"
+                    />
                 </div>
                 <div>
                     <label
@@ -120,7 +191,7 @@ export default function SignupPage() {
                         className="font-semibold mb-1 block"
                         style={{ color: BLUE }}
                     >
-                        Email
+                        Email *
                     </label>
                     <input
                         type="email"
@@ -129,6 +200,7 @@ export default function SignupPage() {
                         onChange={e => setEmail(e.target.value)}
                         className="w-full p-3 rounded-lg text-black border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
                         required
+                        disabled={isLoading}
                         autoComplete="email"
                     />
                 </div>
@@ -138,7 +210,7 @@ export default function SignupPage() {
                         className="font-semibold mb-1 block"
                         style={{ color: BLUE }}
                     >
-                        Password
+                        Password *
                     </label>
                     <input
                         type="password"
@@ -147,7 +219,9 @@ export default function SignupPage() {
                         onChange={e => setPassword(e.target.value)}
                         className="w-full p-3 rounded-lg text-black border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
                         required
+                        disabled={isLoading}
                         autoComplete="new-password"
+                        placeholder="8+ chars, uppercase, lowercase, digit"
                     />
                 </div>
                 <div>
@@ -156,7 +230,7 @@ export default function SignupPage() {
                         className="font-semibold mb-1 block"
                         style={{ color: BLUE }}
                     >
-                        Confirm Password
+                        Confirm Password *
                     </label>
                     <input
                         type="password"
@@ -165,18 +239,20 @@ export default function SignupPage() {
                         onChange={e => setConfirmPassword(e.target.value)}
                         className="w-full p-3 rounded-lg text-black border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
                         required
+                        disabled={isLoading}
                         autoComplete="new-password"
                     />
                 </div>
                 <button
                     type="submit"
-                    className="font-bold text-lg p-3 rounded-lg border-none cursor-pointer transition"
+                    className="font-bold text-lg p-3 rounded-lg border-none cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
                         background: BLUE,
                         color: GOLD,
                     }}
+                    disabled={isLoading}
                 >
-                    Create Account
+                    {isLoading ? 'Creating Account...' : 'Create Account'}
                 </button>
                 <div className="flex items-center my-2">
                     <hr className="flex-grow border-gray-300" />
@@ -186,7 +262,8 @@ export default function SignupPage() {
                 <button
                     type="button"
                     onClick={handleGoogleSignup}
-                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 p-3 rounded-lg text-base font-medium cursor-pointer transition hover:bg-gray-50 text-black"
+                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 p-3 rounded-lg text-base font-medium cursor-pointer transition hover:bg-gray-50 text-black disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading}
                 >
                     <Image
                         src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"

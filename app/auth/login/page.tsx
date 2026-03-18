@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
+import API_BASE_URL from '@/app/route/route';
 
 const GOLD = '#FFD700';
 const BLUE = '#1E3A8A';
@@ -16,6 +17,7 @@ export default function LoginPage() {
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [error, setError] = useState<string>('');
+    const [isLoading, setIsLoading] = useState<boolean>(false);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -24,11 +26,49 @@ export default function LoginPage() {
             setError('Please enter both email and password.');
             return;
         }
-        // Example: call API here
-        // await login({ email, password });
-        
-        // For testing purposes - navigate to dashboard without API verification
-        router.push('/components/layout');
+
+        setIsLoading(true);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email,
+                    password,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setError(data.message || 'Login failed. Please check your credentials.');
+                setIsLoading(false);
+                return;
+            }
+
+            // Store the JWT token and user info from AuthResponse
+            if (data.data && data.data.accessToken) {
+                localStorage.setItem('authToken', data.data.accessToken);
+                localStorage.setItem('tokenType', data.data.tokenType || 'Bearer');
+                if (data.data.expiresIn) {
+                    localStorage.setItem('expiresIn', data.data.expiresIn.toString());
+                }
+                // Store user info for later use
+                if (data.data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                }
+            }
+
+            // Redirect to dashboard on successful login
+            router.push('/components/layout');
+        } catch (err) {
+            setError('An error occurred. Please check your connection and try again.');
+            console.error('Login error:', err);
+            setIsLoading(false);
+        }
     };
 
     const handleGoogleLogin = () => {
@@ -78,6 +118,7 @@ export default function LoginPage() {
                         onChange={e => setEmail(e.target.value)}
                         className="w-full p-3 text-black rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
                         required
+                        disabled={isLoading}
                         autoComplete="email"
                     />
                 </div>
@@ -96,18 +137,20 @@ export default function LoginPage() {
                         onChange={e => setPassword(e.target.value)}
                         className="w-full p-3 text-black rounded-lg border border-gray-300 outline-none text-base mt-1 focus:border-blue-700"
                         required
+                        disabled={isLoading}
                         autoComplete="current-password"
                     />
                 </div>
                 <button
                     type="submit"
-                    className="font-bold text-lg p-3 rounded-lg border-none cursor-pointer transition"
+                    className="font-bold text-lg p-3 rounded-lg border-none cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
                         background: BLUE,
                         color: GOLD,
                     }}
+                    disabled={isLoading}
                 >
-                    Sign In
+                    {isLoading ? 'Signing In...' : 'Sign In'}
                 </button>
                 <div className="flex items-center my-2">
                     <hr className="grow border-gray-300" />
@@ -117,7 +160,8 @@ export default function LoginPage() {
                 <button
                     type="button"
                     onClick={handleGoogleLogin}
-                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 p-3 rounded-lg text-base font-medium cursor-pointer transition hover:bg-gray-50 text-black"
+                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 p-3 rounded-lg text-base font-medium cursor-pointer transition hover:bg-gray-50 text-black disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading}
                 >
                     <Image
                         src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
