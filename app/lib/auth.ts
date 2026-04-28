@@ -1,103 +1,44 @@
-/**
- * Authentication utility functions
- * Handles storing and retrieving auth-related data from localStorage
- */
+import type { AuthResponse, AuthUserProfile } from "./types";
 
-export interface AuthTokens {
-    accessToken: string;
-    tokenType: string;
-    expiresIn?: number;
+const TOKEN_KEY = "msu_cert_token";
+const PROFILE_KEY = "msu_cert_profile";
+
+export function saveSession(auth: AuthResponse) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, auth.accessToken);
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(auth.user));
 }
 
-export interface User {
-    id: number;
-    username: string;
-    email: string;
-    fullName: string | null;
-    role: string;
-    createdAt: string;
-    updatedAt: string;
+export function updateSessionProfile(patch: Partial<AuthUserProfile>) {
+  if (typeof window === "undefined") return;
+  const existing = getProfile();
+  if (!existing) return;
+  const updated = { ...existing, ...patch };
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
 }
 
-export interface AuthState {
-    tokens: AuthTokens | null;
-    user: User | null;
+export function clearSession() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(PROFILE_KEY);
 }
 
-/**
- * Get the current authentication state from localStorage
- */
-export const getAuthState = (): AuthState => {
-    if (typeof window === 'undefined') {
-        return { tokens: null, user: null };
-    }
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
 
-    const accessToken = localStorage.getItem('authToken');
-    const tokenType = localStorage.getItem('tokenType') || 'Bearer';
-    const expiresInStr = localStorage.getItem('expiresIn');
-    const userStr = localStorage.getItem('user');
+export function getProfile(): AuthUserProfile | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(PROFILE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUserProfile;
+  } catch {
+    return null;
+  }
+}
 
-    const tokens = accessToken
-        ? {
-              accessToken,
-              tokenType,
-              expiresIn: expiresInStr ? parseInt(expiresInStr, 10) : undefined,
-          }
-        : null;
-
-    const user = userStr ? (JSON.parse(userStr) as User) : null;
-
-    return { tokens, user };
-};
-
-/**
- * Get the current bearer token for API requests
- */
-export const getAuthToken = (): string | null => {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('authToken');
-};
-
-/**
- * Get the current user info
- */
-export const getCurrentUser = (): User | null => {
-    if (typeof window === 'undefined') return null;
-    const userStr = localStorage.getItem('user');
-    return userStr ? (JSON.parse(userStr) as User) : null;
-};
-
-/**
- * Check if user is authenticated
- */
-export const isAuthenticated = (): boolean => {
-    if (typeof window === 'undefined') return false;
-    return !!localStorage.getItem('authToken');
-};
-
-/**
- * Clear all auth data (logout)
- */
-export const clearAuthData = (): void => {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('tokenType');
-    localStorage.removeItem('expiresIn');
-    localStorage.removeItem('user');
-};
-
-/**
- * Create authorization header for API requests
- */
-export const getAuthHeader = (): { [key: string]: string } => {
-    const token = getAuthToken();
-    const tokenType = localStorage.getItem('tokenType') || 'Bearer';
-
-    if (!token) {
-        return {};
-    }
-
-    return {
-        Authorization: `${tokenType} ${token}`,
-    };
-};
+export function isAuthenticated(): boolean {
+  return !!getToken();
+}
