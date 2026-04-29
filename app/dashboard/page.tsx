@@ -14,6 +14,8 @@ import type {
   AuditLog,
   Certificate,
   Institution,
+  InstitutionCreateRequest,
+  InstitutionUpdateRequest,
   ShareLink,
   UserAccount,
   UserRole,
@@ -34,15 +36,18 @@ type NavItem = {
   description: string;
 };
 
+const adminNavItems: NavItem[] = [
+  { id: "overview", label: "Overview", description: "Platform summary" },
+  { id: "certificates", label: "Certificates", description: "All issued and revoked records" },
+  { id: "institutions", label: "Institutions", description: "Create, edit, disable, and delete" },
+  { id: "audit", label: "Audit Logs", description: "Security and activity trail" },
+  { id: "profile", label: "Profile", description: "Account details" },
+  { id: "security", label: "Security", description: "Change password" },
+];
+
 const navByRole: Record<UserRole, NavItem[]> = {
-  ADMIN: [
-    { id: "overview", label: "Overview", description: "Platform summary" },
-    { id: "certificates", label: "Certificates", description: "All issued and revoked records" },
-    { id: "institutions", label: "Institutions", description: "Approve and suspend" },
-    { id: "audit", label: "Audit Logs", description: "Security and activity trail" },
-    { id: "profile", label: "Profile", description: "Account details" },
-    { id: "security", label: "Security", description: "Change password" },
-  ],
+  ADMINISTRATOR: adminNavItems,
+  ADMIN: adminNavItems,
   INSTITUTION: [
     { id: "overview", label: "Overview", description: "Issuance summary" },
     { id: "issue", label: "Issue Certificate", description: "Upload and issue" },
@@ -59,6 +64,10 @@ const navByRole: Record<UserRole, NavItem[]> = {
 };
 
 const DASHBOARD_REFERENCE_TIME = Date.now();
+
+function isAdministrator(role: UserRole): boolean {
+  return role === "ADMINISTRATOR" || role === "ADMIN";
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -89,6 +98,7 @@ export default function DashboardPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const role = (sessionProfile?.role ?? "STUDENT") as UserRole;
+  const isAdminRole = isAdministrator(role);
   const navItems = navByRole[role];
   const activeNav = navItems.find((item) => item.id === activeSection) ?? navItems[0];
 
@@ -278,7 +288,10 @@ export default function DashboardPage() {
     }
   }
 
-  async function updateInstitution(id: string, action: "approve" | "suspend") {
+  async function updateInstitutionStatus(
+    id: string,
+    action: "approve" | "suspend" | "disable"
+  ) {
     setError("");
     setMessage("");
     setWorking(true);
@@ -288,6 +301,51 @@ export default function DashboardPage() {
       setMessage(`Institution ${id} ${action}d successfully`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update institution");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function createInstitution(payload: InstitutionCreateRequest) {
+    setError("");
+    setMessage("");
+    setWorking(true);
+    try {
+      await api.post<Institution>("/api/admin/institutions", payload, true);
+      await refreshRoleData();
+      setMessage(`Institution ${payload.name} created successfully`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create institution");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function updateInstitutionDetails(id: string, payload: InstitutionUpdateRequest) {
+    setError("");
+    setMessage("");
+    setWorking(true);
+    try {
+      await api.put<Institution>(`/api/admin/institutions/${id}`, payload, true);
+      await refreshRoleData();
+      setMessage(`Institution ${payload.name} updated successfully`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update institution");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function deleteInstitution(id: string) {
+    setError("");
+    setMessage("");
+    setWorking(true);
+    try {
+      await api.delete<void>(`/api/admin/institutions/${id}`, true);
+      await refreshRoleData();
+      setMessage(`Institution ${id} deleted successfully`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete institution");
     } finally {
       setWorking(false);
     }
@@ -512,15 +570,18 @@ export default function DashboardPage() {
                 />
               ) : null}
 
-              {activeSection === "institutions" && role === "ADMIN" ? (
+              {activeSection === "institutions" && isAdminRole ? (
                 <InstitutionsPanel
                   institutions={institutions}
                   working={working}
-                  onUpdate={(id, action) => void updateInstitution(id, action)}
+                  onCreate={createInstitution}
+                  onUpdate={updateInstitutionDetails}
+                  onStatusUpdate={updateInstitutionStatus}
+                  onDelete={deleteInstitution}
                 />
               ) : null}
 
-              {activeSection === "audit" && role === "ADMIN" ? (
+              {activeSection === "audit" && isAdminRole ? (
                 <AuditPanel auditLogs={auditLogs} />
               ) : null}
 
@@ -595,7 +656,7 @@ function OverviewPanel({
     .slice(0, 6);
 
   const cards =
-    role === "ADMIN"
+    isAdministrator(role)
       ? [
           { label: "Certificates Recorded", value: certificates.length },
           { label: "Active Certificates", value: activeCertificates },
@@ -639,7 +700,7 @@ function OverviewPanel({
         ))}
       </div>
 
-      {role === "ADMIN" ? (
+      {isAdministrator(role) ? (
         <div className="grid gap-4 xl:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Institution Health</h3>
@@ -688,7 +749,7 @@ function OverviewPanel({
         </div>
       )}
 
-      {role === "ADMIN" ? (
+      {isAdministrator(role) ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Latest System Events</h3>
           <div className="mt-3 space-y-2">
@@ -831,7 +892,7 @@ function CertificateTable({
     });
   }, [certificates, query, statusFilter, sortBy]);
 
-  const pageSize = role === "ADMIN" ? 10 : 8;
+  const pageSize = isAdministrator(role) ? 10 : 8;
   const totalPages = Math.max(1, Math.ceil(filteredCertificates.length / pageSize));
   const activePage = Math.min(page, totalPages);
   const pageStart = (activePage - 1) * pageSize;
@@ -855,7 +916,7 @@ function CertificateTable({
       <p className="mt-1 text-sm text-slate-600">
         {role === "STUDENT"
           ? "View, download, and share your certificates."
-          : role === "ADMIN"
+          : isAdministrator(role)
             ? "Cross-check issued records and monitor revocations."
             : "Manage issued certificates and revocations."}
       </p>
@@ -1017,15 +1078,31 @@ function CertificateTable({
 function InstitutionsPanel({
   institutions,
   working,
+  onCreate,
   onUpdate,
+  onStatusUpdate,
+  onDelete,
 }: {
   institutions: Institution[];
   working: boolean;
-  onUpdate: (id: string, action: "approve" | "suspend") => void;
+  onCreate: (payload: InstitutionCreateRequest) => Promise<void>;
+  onUpdate: (id: string, payload: InstitutionUpdateRequest) => Promise<void>;
+  onStatusUpdate: (id: string, action: "approve" | "suspend" | "disable") => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "SUSPENDED">("ALL");
   const [page, setPage] = useState(1);
+  const [createForm, setCreateForm] = useState<InstitutionCreateRequest>({
+    name: "",
+    registrationNumber: "",
+    email: "",
+    password: "",
+    contactPerson: "",
+    phone: "",
+  });
+  const [editingInstitutionId, setEditingInstitutionId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<InstitutionUpdateRequest | null>(null);
 
   const filteredInstitutions = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -1068,12 +1145,100 @@ function InstitutionsPanel({
   const approvedCount = institutions.filter((institution) => institution.status === "APPROVED").length;
   const suspendedCount = institutions.filter((institution) => institution.status === "SUSPENDED").length;
 
+  async function submitCreateInstitution(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onCreate(createForm);
+    setCreateForm({
+      name: "",
+      registrationNumber: "",
+      email: "",
+      password: "",
+      contactPerson: "",
+      phone: "",
+    });
+  }
+
+  function beginEditInstitution(institution: Institution) {
+    setEditingInstitutionId(institution.id);
+    setEditForm({
+      name: institution.name,
+      registrationNumber: institution.registrationNumber,
+      email: institution.email,
+      contactPerson: institution.contactPerson ?? "",
+      phone: institution.phone ?? "",
+      status: institution.status,
+    });
+  }
+
+  async function saveEditInstitution(event: FormEvent<HTMLFormElement>, institutionId: string) {
+    event.preventDefault();
+    if (!editForm) return;
+    await onUpdate(institutionId, editForm);
+    setEditingInstitutionId(null);
+    setEditForm(null);
+  }
+
   return (
     <article>
-      <h2 className="text-2xl font-semibold text-slate-900">Institution Verification</h2>
+      <h2 className="text-2xl font-semibold text-slate-900">Institution Management</h2>
       <p className="mt-1 text-sm text-slate-600">
-        Approve, suspend, and monitor institution onboarding.
+        Create, edit, disable, and monitor institution accounts.
       </p>
+
+      <form
+        className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2"
+        onSubmit={(event) => void submitCreateInstitution(event)}
+      >
+        <h3 className="md:col-span-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
+          Create Institution
+        </h3>
+        <InputField
+          label="Institution Name"
+          value={createForm.name}
+          onChange={(value) => setCreateForm((current) => ({ ...current, name: value }))}
+          required
+        />
+        <InputField
+          label="Registration Number"
+          value={createForm.registrationNumber}
+          onChange={(value) => setCreateForm((current) => ({ ...current, registrationNumber: value }))}
+          required
+        />
+        <InputField
+          label="Institution Email"
+          value={createForm.email}
+          onChange={(value) => setCreateForm((current) => ({ ...current, email: value }))}
+          type="email"
+          required
+        />
+        <InputField
+          label="Initial Password"
+          value={createForm.password}
+          onChange={(value) => setCreateForm((current) => ({ ...current, password: value }))}
+          type="password"
+          required
+        />
+        <InputField
+          label="Contact Person"
+          value={createForm.contactPerson}
+          onChange={(value) => setCreateForm((current) => ({ ...current, contactPerson: value }))}
+          required
+        />
+        <InputField
+          label="Phone"
+          value={createForm.phone}
+          onChange={(value) => setCreateForm((current) => ({ ...current, phone: value }))}
+        />
+        <div className="md:col-span-2">
+          <button
+            type="submit"
+            className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            disabled={working}
+          >
+            {working ? "Creating..." : "Create Institution"}
+          </button>
+        </div>
+      </form>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <InfoCard label="Total" value={String(institutions.length)} />
@@ -1117,55 +1282,156 @@ function InstitutionsPanel({
             key={institution.id}
             className="rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-4 shadow-sm"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-semibold text-slate-900">{institution.name}</p>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  institution.status === "APPROVED"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : institution.status === "SUSPENDED"
-                      ? "bg-rose-100 text-rose-700"
-                      : "bg-amber-100 text-amber-700"
-                }`}
-              >
-                {institution.status}
-              </span>
-            </div>
-            <p className="text-sm text-slate-600">
-              {institution.email}
-            </p>
-            <p className="text-xs text-slate-500">Registration: {institution.registrationNumber}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Contact: {institution.contactPerson || "N/A"} • {institution.phone || "N/A"}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Registered: {formatDate(institution.createdAt)}
-              {institution.approvedAt ? ` • Approved: ${formatDate(institution.approvedAt)}` : ""}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded-lg bg-emerald-700 px-3 py-1 text-sm font-semibold text-white disabled:opacity-60"
-                onClick={() => onUpdate(institution.id, "approve")}
-                disabled={working || institution.status === "APPROVED"}
-              >
-                Approve
-              </button>
-              <button
-                type="button"
-                className="rounded-lg bg-rose-700 px-3 py-1 text-sm font-semibold text-white disabled:opacity-60"
-                onClick={() => onUpdate(institution.id, "suspend")}
-                disabled={working || institution.status === "SUSPENDED"}
-              >
-                Suspend
-              </button>
-              <a
-                href={`mailto:${institution.email}`}
-                className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-white"
-              >
-                Contact
-              </a>
-            </div>
+            {editingInstitutionId === institution.id && editForm ? (
+              <form className="grid gap-3 md:grid-cols-2" onSubmit={(event) => void saveEditInstitution(event, institution.id)}>
+                <InputField
+                  label="Institution Name"
+                  value={editForm.name}
+                  onChange={(value) => setEditForm((current) => (current ? { ...current, name: value } : current))}
+                  required
+                />
+                <InputField
+                  label="Registration Number"
+                  value={editForm.registrationNumber}
+                  onChange={(value) =>
+                    setEditForm((current) => (current ? { ...current, registrationNumber: value } : current))
+                  }
+                  required
+                />
+                <InputField
+                  label="Institution Email"
+                  value={editForm.email}
+                  onChange={(value) => setEditForm((current) => (current ? { ...current, email: value } : current))}
+                  type="email"
+                  required
+                />
+                <InputField
+                  label="Contact Person"
+                  value={editForm.contactPerson}
+                  onChange={(value) =>
+                    setEditForm((current) => (current ? { ...current, contactPerson: value } : current))
+                  }
+                  required
+                />
+                <InputField
+                  label="Phone"
+                  value={editForm.phone}
+                  onChange={(value) => setEditForm((current) => (current ? { ...current, phone: value } : current))}
+                />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">Status *</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-600"
+                    value={editForm.status}
+                    onChange={(event) =>
+                      setEditForm((current) =>
+                        current
+                          ? {
+                              ...current,
+                              status: event.target.value as InstitutionUpdateRequest["status"],
+                            }
+                          : current
+                      )
+                    }
+                    required
+                  >
+                    <option value="PENDING">PENDING</option>
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="SUSPENDED">SUSPENDED</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2 flex flex-wrap gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-blue-700 px-3 py-1 text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={working}
+                  >
+                    {working ? "Saving..." : "Save Changes"}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-white"
+                    onClick={() => {
+                      setEditingInstitutionId(null);
+                      setEditForm(null);
+                    }}
+                    disabled={working}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-slate-900">{institution.name}</p>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      institution.status === "APPROVED"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : institution.status === "SUSPENDED"
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {institution.status}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600">{institution.email}</p>
+                <p className="text-xs text-slate-500">Registration: {institution.registrationNumber}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Contact: {institution.contactPerson || "N/A"} • {institution.phone || "N/A"}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Registered: {formatDate(institution.createdAt)}
+                  {institution.approvedAt ? ` • Approved: ${formatDate(institution.approvedAt)}` : ""}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-white disabled:opacity-60"
+                    onClick={() => beginEditInstitution(institution)}
+                    disabled={working}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-emerald-700 px-3 py-1 text-sm font-semibold text-white disabled:opacity-60"
+                    onClick={() => void onStatusUpdate(institution.id, "approve")}
+                    disabled={working || institution.status === "APPROVED"}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-rose-700 px-3 py-1 text-sm font-semibold text-white disabled:opacity-60"
+                    onClick={() => void onStatusUpdate(institution.id, "disable")}
+                    disabled={working || institution.status === "SUSPENDED"}
+                  >
+                    Disable
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-slate-900 px-3 py-1 text-sm font-semibold text-white disabled:opacity-60"
+                    onClick={() => {
+                      if (confirm(`Delete institution ${institution.name}?`)) {
+                        void onDelete(institution.id);
+                      }
+                    }}
+                    disabled={working}
+                  >
+                    Delete
+                  </button>
+                  <a
+                    href={`mailto:${institution.email}`}
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-white"
+                  >
+                    Contact
+                  </a>
+                </div>
+              </>
+            )}
           </div>
         ))}
 
@@ -1470,11 +1736,13 @@ function InputField({
   value,
   onChange,
   required = false,
+  type = "text",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  type?: string;
 }) {
   return (
     <div>
@@ -1487,6 +1755,7 @@ function InputField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
+        type={type}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-export type UserRole = "ADMIN" | "INSTITUTION" | "STUDENT";
+export type UserRole = "ADMINISTRATOR" | "ADMIN" | "INSTITUTION" | "STUDENT";
 
 export interface AuthUserProfile {
   id: number;
@@ -88,6 +88,24 @@ export interface Institution {
   status: "PENDING" | "APPROVED" | "SUSPENDED";
   createdAt: string;
   approvedAt: string | null;
+}
+
+export interface InstitutionCreateRequest {
+  name: string;
+  registrationNumber: string;
+  email: string;
+  password: string;
+  contactPerson: string;
+  phone: string;
+}
+
+export interface InstitutionUpdateRequest {
+  name: string;
+  registrationNumber: string;
+  email: string;
+  contactPerson: string;
+  phone: string;
+  status: "PENDING" | "APPROVED" | "SUSPENDED";
 }
 
 export interface AuditLog {

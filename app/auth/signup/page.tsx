@@ -2,72 +2,34 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { api } from "@/app/lib/api";
 import { saveSession } from "@/app/lib/auth";
 import type { AuthResponse } from "@/app/lib/types";
 
-type SignupMode = "student" | "staff";
-
 export default function SignupPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<SignupMode>("student");
   const [fullName, setFullName] = useState("");
   const [studentId, setStudentId] = useState("");
-  const [institutionName, setInstitutionName] = useState("");
-  const [registrationNumber, setRegistrationNumber] = useState("");
-  const [contactPerson, setContactPerson] = useState("");
-  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  const title = useMemo(
-    () => (mode === "student" ? "Student Registration" : "University Staff Registration"),
-    [mode]
-  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    setMessage("");
     setIsLoading(true);
 
     try {
-      if (mode === "student") {
-        const auth = await api.post<AuthResponse>("/api/auth/register/student", {
-          fullName,
-          studentId,
-          email,
-          password,
-        });
-        saveSession(auth);
-        router.push("/dashboard");
-        return;
-      }
-
-      await api.post("/api/auth/register/institution", {
-        name: institutionName,
-        registrationNumber,
+      const auth = await api.post<AuthResponse>("/api/auth/register/student", {
+        fullName,
+        studentId,
         email,
         password,
-        contactPerson,
-        phone,
       });
-      setMessage(
-        "Institution submitted successfully. An administrator must approve the account before login is enabled."
-      );
-      setMode("student");
-      setFullName("");
-      setStudentId("");
-      setInstitutionName("");
-      setRegistrationNumber("");
-      setContactPerson("");
-      setPhone("");
-      setEmail("");
-      setPassword("");
+      saveSession(auth);
+      router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
@@ -78,61 +40,14 @@ export default function SignupPage() {
   return (
     <main className="screen-shell">
       <section className="panel w-full max-w-xl">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className={`rounded-full px-4 py-1 text-sm font-semibold ${
-              mode === "student" ? "bg-blue-700 text-amber-200" : "bg-slate-200 text-slate-700"
-            }`}
-            onClick={() => setMode("student")}
-          >
-            Student
-          </button>
-          <button
-            type="button"
-            className={`rounded-full px-4 py-1 text-sm font-semibold ${
-              mode === "staff" ? "bg-blue-700 text-amber-200" : "bg-slate-200 text-slate-700"
-            }`}
-            onClick={() => setMode("staff")}
-          >
-            University Staff
-          </button>
-        </div>
-
-        <h1 className="mt-4 text-3xl font-bold text-slate-900">{title}</h1>
+        <h1 className="text-3xl font-bold text-slate-900">Student Registration</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Register to issue, manage, and verify Midlands State University certificates.
+          Create your student account to receive and share certificate verification details.
         </p>
 
         <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
-          {mode === "student" ? (
-            <>
-              <Field label="Full Name" value={fullName} setValue={setFullName} required />
-              <Field label="Student ID" value={studentId} setValue={setStudentId} required />
-            </>
-          ) : (
-            <>
-              <Field
-                label="Institution Name"
-                value={institutionName}
-                setValue={setInstitutionName}
-                required
-              />
-              <Field
-                label="Registration Number"
-                value={registrationNumber}
-                setValue={setRegistrationNumber}
-                required
-              />
-              <Field
-                label="Contact Person"
-                value={contactPerson}
-                setValue={setContactPerson}
-                required
-              />
-              <Field label="Phone" value={phone} setValue={setPhone} />
-            </>
-          )}
+          <Field label="Full Name" value={fullName} setValue={setFullName} required />
+          <Field label="Student ID" value={studentId} setValue={setStudentId} required />
 
           <Field label="Email" value={email} setValue={setEmail} required type="email" />
           <Field
@@ -144,9 +59,6 @@ export default function SignupPage() {
             help="At least 8 characters"
           />
 
-          {message ? (
-            <p className="rounded-xl bg-emerald-100 px-3 py-2 text-sm text-emerald-700">{message}</p>
-          ) : null}
           {error ? (
             <p className="rounded-xl bg-rose-100 px-3 py-2 text-sm text-rose-700">{error}</p>
           ) : null}
@@ -159,6 +71,10 @@ export default function SignupPage() {
             {isLoading ? "Submitting..." : "Create account"}
           </button>
         </form>
+
+        <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          Institution accounts are created and managed by administrators.
+        </p>
 
         <p className="mt-6 text-sm text-slate-600">
           Already registered?{" "}
